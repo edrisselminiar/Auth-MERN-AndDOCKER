@@ -1,0 +1,71 @@
+
+version: '3.8'
+
+services:
+
+  front-auth:
+    build:
+      context: ./front-auth
+      dockerfile: Dockerfile
+    container_name: front-auth 
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./front-auth:/app
+      - /app/node_modules
+    depends_on:
+      - auth-service
+    environment:
+      - VITE_API_URL=http://localhost:3000
+      - CHOKIDAR_USEPOLLING=true
+    networks:
+      - mern-network 
+    command: npm run dev
+    stdin_open: true
+    tty: true
+
+
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo
+    # env_file: 
+    #   - ./env
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
+    volumes:
+      - ./auth-service:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - mern-network
+    command: npm run dev
+      
+
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - mern-network
+    command: mongod --quiet --logpath /dev/null
+
+volumes:
+  mongodb_data:
+    driver: local
+
+
+# Network configuration
+networks:
+  mern-network:                # Create a custom bridge network
+    driver: bridge            # Use bridge driver for local development
