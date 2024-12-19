@@ -1,85 +1,67 @@
+version: '3.8'
 
-  version: '3.8'
+services:
+  # Frontend service
+  front-auth:
+    build:
+      context: ./front-auth         # Directory containing the Dockerfile for the frontend
+      dockerfile: Dockerfile       # Dockerfile to build the frontend image
+    container_name: front-auth      # Name of the frontend container
+    ports:
+      - "5173:5173"                # Map port 5173 on the host to port 5173 on the container
+    volumes:
+      - ./front-auth:/app           # Mount the frontend directory to /app in the container
+      - /app/node_modules          # Mount node_modules to avoid re-installing dependencies
+    depends_on:
+      - auth-service               # Start auth-service before the frontend
+    environment:
+      - VITE_API_URL=http://localhost:3000  # API URL for the frontend to connect to the backend
+    networks:
+      - mern-network               # Connect to the mern-network
 
-  services:
+  # Backend authentication service
+  auth-service:
+    build:
+      context: ./auth-service      # Directory containing the Dockerfile for the backend
+      dockerfile: Dockerfile       # Dockerfile to build the backend image
+    container_name: auth-service   # Name of the backend container
+    restart: always                # Always restart the container on failure
+    ports:
+      - "3000:3000"                # Map port 3000 on the host to port 3000 on the container
+    depends_on:
+      - mongo                      # Start mongo before the backend service
+    environment:
+      - MONGODB_URI=${MONGODB_URI} # MongoDB connection URI
+      - JWT_SECRET=${JWT_SECRET}   # JWT secret for signing tokens
+    volumes:
+      - ./auth-service:/usr/src/app # Mount the backend directory to /usr/src/app in the container
+      - /usr/src/app/node_modules  # Mount node_modules to avoid re-installing dependencies
+    networks:
+      - mern-network               # Connect to the mern-network
 
-    front-auth:
-      build:
-        context: ./front-auth
-        dockerfile: Dockerfile
-      container_name: front-auth 
-      ports:
-        - "5173:5173"
-      volumes:
-        - ./front-auth:/app
-        - /app/node_modules
-      depends_on:
-        - auth-service
-      environment:
-        - VITE_API_URL=http://localhost:3000
-      networks:
-        - mern-network 
-    
+  # MongoDB service
+  mongo:
+    image: mongo:latest            # Use the latest MongoDB image
+    container_name: mongo          # Name of the MongoDB container
+    restart: always                # Always restart the container on failure
+    ports:
+      - "27017:27017"              # Map port 27017 on the host to port 27017 on the container
+    volumes:
+      - mongodb_data:/data/db      # Persist MongoDB data in a named volume
+    networks:
+      - mern-network               # Connect to the mern-network
+    command: mongod --quiet --logpath /dev/null # Run MongoDB with specified options
 
-    auth-service:
-      build:
-        context: ./auth-service
-        dockerfile: Dockerfile
-      container_name: auth-service
-      # restart: always
-      ports:
-        - "3000:3000"
-      depends_on:
-        - mongo
-      # env_file: 
-      #   - ./env
-      environment:
-      - PORT=3000
-      - MONGODB_URI=mongodb://mongo:27017/auth_db
-      - JWT_SECRET=${JWT_SECRET}
-      - NODE_ENV=development
-      volumes:
-        - ./auth-service:/usr/src/app
-        - /usr/src/app/node_modules
-      networks:
-        - mern-network
-      healthcheck:
-        test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-        interval: 30s
-        timeout: 10s
-        retries: 3
-      restart: unless-stopped
-        
+volumes:
+  mongodb_data:
+    driver: local                  # Use local driver for MongoDB data volume
 
-    mongo:
-      image: mongo:latest
-      container_name: mongo
-      ports:
-        - "27017:27017"
-      volumes:
-        - mongodb_data:/data/db
-      networks:
-        - mern-network
-      restart: unless-stopped
-      environment:
-      - MONGO_INITDB_ROOT_USERNAME=root
-      - MONGO_INITDB_ROOT_PASSWORD=example
-      command: ["--bind_ip_all"]
-      healthcheck:
-        test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-        interval: 10s
-        timeout: 10s
-        retries: 5
-        start_period: 40s
+# Network configuration
+networks:
+  mern-network:                    # Create a custom bridge network
+    driver: bridge                 # Use bridge driver for local development
 
 
 
-  volumes:
-    mongodb_data:
-      # driver: local
 
 
-  # Network configuration
-  networks:
-    mern-network:                # Create a custom bridge network
-      driver: bridge            # Use bridge driver for local development
